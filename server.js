@@ -43,18 +43,22 @@ wss.on('connection', (ws) => {
       if (!clientData) return;
 
       switch (data.type) {
-        // Player sends their position/velocity/sector
-        case 'PLAYER_UPDATE':
-          clientData.sector = data.sector || clientData.sector;
-          clientData.callsign = data.callsign || clientData.callsign;
-          clientData.shipClass = data.shipClass || clientData.shipClass;
-          clientData.x = data.x;
-          clientData.y = data.y;
-          clientData.vx = data.vx;
-          clientData.vy = data.vy;
-          clientData.angle = data.angle;
-          clientData.thrusting = data.thrusting;
-          break;
+        // Player sends their position/velocity/sector/telemetry
+           case 'PLAYER_UPDATE':
+             clientData.sector = data.sector || clientData.sector;
+             clientData.callsign = data.callsign || clientData.callsign;
+             clientData.shipClass = data.shipClass || clientData.shipClass;
+             clientData.x = data.x;
+             clientData.y = data.y;
+             clientData.vx = data.vx;
+             clientData.vy = data.vy;
+             clientData.angle = data.angle;
+             clientData.thrusting = data.thrusting;
+             clientData.hp = data.hp;
+             clientData.maxHp = data.maxHp;
+             clientData.shieldPercent = data.shieldPercent;
+             clientData.hullPercent = data.hullPercent;
+             break;
 
         // Player fires a weapon or launches ordnance
         case 'WEAPON_FIRED':
@@ -174,7 +178,8 @@ setInterval(() => {
            thrusting: clientData.thrusting,
            hp: clientData.hp,
            maxHp: clientData.maxHp,
-           shieldPercent: clientData.shieldPercent
+           shieldPercent: clientData.shieldPercent,
+           hullPercent: clientData.hullPercent
          });
        }
      }
