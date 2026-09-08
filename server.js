@@ -68,6 +68,24 @@ wss.on('connection', (ws) => {
             weaponKey: data.weaponKey
           });
           break;
+
+        // Player hits another player with weapon fire
+        case 'PLAYER_HIT':
+          // Forward directly to the targeted victim
+          for (const [targetWs, targetClient] of clients.entries()) {
+            if (targetClient.id === data.targetId && targetWs.readyState === WebSocket.OPEN) {
+              targetWs.send(JSON.stringify({
+                type: 'REMOTE_DAMAGE_RECEIVED',
+                attackerId: clientData.id,
+                damage: data.damage,
+                weaponKey: data.weaponKey,
+                hitX: data.hitX,
+                hitY: data.hitY
+              }));
+              break;
+              }
+            }
+            break;
       }
     } catch (err) {
       // Silently ignore corrupted packets
