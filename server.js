@@ -70,22 +70,39 @@ wss.on('connection', (ws) => {
           break;
 
         // Player hits another player with weapon fire
-        case 'PLAYER_HIT':
-          // Forward directly to the targeted victim
-          for (const [targetWs, targetClient] of clients.entries()) {
-            if (targetClient.id === data.targetId && targetWs.readyState === WebSocket.OPEN) {
-              targetWs.send(JSON.stringify({
-                type: 'REMOTE_DAMAGE_RECEIVED',
-                attackerId: clientData.id,
-                damage: data.damage,
-                weaponKey: data.weaponKey,
-                hitX: data.hitX,
-                hitY: data.hitY
-              }));
-              break;
-              }
-            }
-            break;
+           case 'PLAYER_HIT':
+             // Forward to victim, and notify sector peers of the shield/hull hit flash
+             for (const [targetWs, targetClient] of clients.entries()) {
+               if (targetClient.id === data.targetId && targetWs.readyState === WebSocket.OPEN) {
+                 targetWs.send(JSON.stringify({
+                   type: 'REMOTE_DAMAGE_RECEIVED',
+                   attackerId: clientData.id,
+                   damage: data.damage,
+                   weaponKey: data.weaponKey,
+                   hitX: data.hitX,
+                   hitY: data.hitY
+                 }));
+                 break;
+               }
+             }
+             broadcastToSector(ws, clientData.sector, {
+               type: 'REMOTE_PEER_HIT',
+               targetId: data.targetId,
+               hitX: data.hitX,
+               hitY: data.hitY
+             });
+             break;
+
+           // Player ship destroyed in combat
+           case 'PLAYER_EXPLODED':
+             broadcastToSector(ws, clientData.sector, {
+               type: 'REMOTE_PEER_EXPLODED',
+               victimId: clientData.id,
+               x: data.x,
+               y: data.y,
+               radius: data.radius
+             });
+             break;
       }
     } catch (err) {
       // Silently ignore corrupted packets
@@ -134,20 +151,23 @@ setInterval(() => {
   };
 
   for (const clientData of clients.values()) {
-    if (sectorSnapshots[clientData.sector]) {
-      sectorSnapshots[clientData.sector].push({
-        id: clientData.id,
-        callsign: clientData.callsign,
-        shipClass: clientData.shipClass,
-        x: Math.round(clientData.x),
-        y: Math.round(clientData.y),
-        vx: Math.round(clientData.vx),
-        vy: Math.round(clientData.vy),
-        angle: Math.round(clientData.angle * 100) / 100,
-        thrusting: clientData.thrusting
-      });
-    }
-  }
+       if (sectorSnapshots[clientData.sector]) {
+         sectorSnapshots[clientData.sector].push({
+           id: clientData.id,
+           callsign: clientData.callsign,
+           shipClass: clientData.shipClass,
+           x: Math.round(clientData.x),
+           y: Math.round(clientData.y),
+           vx: Math.round(clientData.vx),
+           vy: Math.round(clientData.vy),
+           angle: Math.round(clientData.angle * 100) / 100,
+           thrusting: clientData.thrusting,
+           hp: clientData.hp,
+           maxHp: clientData.maxHp,
+           shieldPercent: clientData.shieldPercent
+         });
+       }
+     }
 
   // Send each player only the ships in their active sector
   for (const [socket, clientData] of clients.entries()) {
