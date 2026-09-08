@@ -71,7 +71,6 @@ wss.on('connection', (ws) => {
 
         // Player hits another player with weapon fire
            case 'PLAYER_HIT':
-             // Forward to victim, and notify sector peers of the shield/hull hit flash
              for (const [targetWs, targetClient] of clients.entries()) {
                if (targetClient.id === data.targetId && targetWs.readyState === WebSocket.OPEN) {
                  targetWs.send(JSON.stringify({
@@ -85,23 +84,33 @@ wss.on('connection', (ws) => {
                  break;
                }
              }
-             broadcastToSector(ws, clientData.sector, {
-               type: 'REMOTE_PEER_HIT',
-               targetId: data.targetId,
-               hitX: data.hitX,
-               hitY: data.hitY
-             });
+             // Broadcast hit flash to EVERYONE in sector (including the shooter!)
+             for (const [socket, peer] of clients.entries()) {
+               if (peer.sector === clientData.sector && socket.readyState === WebSocket.OPEN) {
+                 socket.send(JSON.stringify({
+                   type: 'REMOTE_PEER_HIT',
+                   targetId: data.targetId,
+                   hitX: data.hitX,
+                   hitY: data.hitY
+                 }));
+               }
+             }
              break;
 
            // Player ship destroyed in combat
            case 'PLAYER_EXPLODED':
-             broadcastToSector(ws, clientData.sector, {
-               type: 'REMOTE_PEER_EXPLODED',
-               victimId: clientData.id,
-               x: data.x,
-               y: data.y,
-               radius: data.radius
-             });
+             clientData.isDead = true; // Flag dead on server so snapshots stop broadcasting it
+             for (const [socket, peer] of clients.entries()) {
+               if (peer.sector === clientData.sector && socket.readyState === WebSocket.OPEN) {
+                 socket.send(JSON.stringify({
+                   type: 'REMOTE_PEER_EXPLODED',
+                   victimId: clientData.id,
+                   x: data.x,
+                   y: data.y,
+                   radius: data.radius
+                 }));
+               }
+             }
              break;
       }
     } catch (err) {
@@ -151,6 +160,7 @@ setInterval(() => {
   };
 
   for (const clientData of clients.values()) {
+       if (clientData.isDead) continue; // Skip destroyed ships
        if (sectorSnapshots[clientData.sector]) {
          sectorSnapshots[clientData.sector].push({
            id: clientData.id,
