@@ -161,11 +161,11 @@ wss.on('connection', (ws) => {
           break;
         }
 
-        // Player broadcast text message to current sector
+        // Player broadcast text message globally across all sectors 💬✨
         case 'PLAYER_CHAT': {
           const rawText = String(data.text || '').trim().slice(0, 140);
           if (rawText.length > 0) {
-            broadcastToSector(ws, clientData.sector, {
+            broadcastGlobal(ws, {
               type: 'REMOTE_CHAT_MESSAGE',
               senderId: clientData.id,
               callsign: clientData.callsign || 'Unknown Pilot',
@@ -385,6 +385,16 @@ function electSectorHost(sectorId) {
           }));
         }
       }
+    }
+  }
+}
+
+// Helper: Send a packet to EVERY connected client EXCEPT the sender, globally across all sectors 🌐✨
+function broadcastGlobal(senderWs, packet) {
+  const payload = JSON.stringify(packet);
+  for (const [socket, clientData] of clients.entries()) {
+    if (socket !== senderWs && socket.readyState === WebSocket.OPEN) {
+      socket.send(payload);
     }
   }
 }
