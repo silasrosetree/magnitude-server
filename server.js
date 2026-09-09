@@ -32,17 +32,10 @@ wss.on('connection', (ws) => {
 
   console.log(`[Connect] Player connected: ${clientId}. Total online: ${clients.size}`);
 
-  // Send the new player their assigned ID and current host status
-  const currentSectorHost = Array.from(clients.values()).find(c => c.sector === 'alpha' && c.isSectorHost);
-  const isFirstInSector = !currentSectorHost;
-  if (isFirstInSector) {
-    clients.get(ws).isSectorHost = true;
-  }
-
+  // Send the new player their assigned ID
   ws.send(JSON.stringify({
     type: 'WELCOME',
-    id: clientId,
-    isHost: isFirstInSector
+    id: clientId
   }));
 
   // Handle incoming messages from this browser
@@ -130,7 +123,8 @@ wss.on('connection', (ws) => {
         }
 
         // Player sends their position/velocity/sector/telemetry
-        case 'PLAYER_UPDATE':
+        case 'PLAYER_UPDATE': {
+          const prevSector = clientData.sector;
           clientData.sector = data.sector || clientData.sector;
           clientData.callsign = data.callsign || clientData.callsign;
           clientData.shipClass = data.shipClass || clientData.shipClass;
@@ -151,7 +145,17 @@ wss.on('connection', (ws) => {
           clientData.shieldPercent = data.shieldPercent;
           clientData.hullPercent = data.hullPercent;
           clientData.isDead = (data.hp !== undefined && data.hp <= 0) || (data.hullPercent !== undefined && data.hullPercent <= 0);
+
+          // Verify sector host authority election
+          if (!clientData.hasRegistered) {
+            clientData.hasRegistered = true;
+            electSectorHost(clientData.sector);
+          } else if (prevSector !== clientData.sector) {
+            electSectorHost(prevSector);
+            electSectorHost(clientData.sector);
+          }
           break;
+        }
 
         // Player fires a weapon or launches ordnance
         case 'WEAPON_FIRED':
