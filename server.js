@@ -74,6 +74,7 @@ wss.on('connection', (ws) => {
           clientData.maxHp = data.maxHp;
           clientData.shieldPercent = data.shieldPercent;
           clientData.hullPercent = data.hullPercent;
+          clientData.isDead = (data.hp !== undefined && data.hp <= 0) || (data.hullPercent !== undefined && data.hullPercent <= 0);
           break;
 
         // Player fires a weapon or launches ordnance
@@ -119,23 +120,19 @@ wss.on('connection', (ws) => {
              break;
 
            // Player ship destroyed in combat
-           case 'PLAYER_EXPLODED':
-             clientData.isDead = true; // Flag dead on server so snapshots stop broadcasting it
-             clientData.hp = 0;
-             clientData.hullPercent = 0;
-             clientData.shieldPercent = 0;
-             for (const [socket, peer] of clients.entries()) {
-               if (peer.sector === clientData.sector && socket !== ws && socket.readyState === WebSocket.OPEN) {
-                 socket.send(JSON.stringify({
-                   type: 'REMOTE_PEER_EXPLODED',
-                   victimId: clientData.id,
-                   x: data.x,
-                   y: data.y,
-                   radius: data.radius
-                 }));
-               }
-             }
-             break;
+        case 'PLAYER_EXPLODED':
+          clientData.isDead = true;
+          clientData.hp = 0;
+          clientData.hullPercent = 0;
+          clientData.shieldPercent = 0;
+          broadcastToSector(ws, clientData.sector, {
+            type: 'REMOTE_PEER_EXPLODED',
+            victimId: clientData.id,
+            x: data.x,
+            y: data.y,
+            radius: data.radius
+          });
+          break;
       }
     } catch (err) {
       // Silently ignore corrupted packets
