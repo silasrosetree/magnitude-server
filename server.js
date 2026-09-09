@@ -108,6 +108,17 @@ wss.on('connection', (ws) => {
           break;
         }
 
+        // Host broadcasts shattered asteroid destruction event
+        case 'HOST_ASTEROID_DESTROYED': {
+          if (clientData.isSectorHost) {
+            broadcastToSector(ws, clientData.sector, {
+              ...data,
+              type: 'REMOTE_ASTEROID_DESTROYED'
+            });
+          }
+          break;
+        }
+
         // Any player scoops a cargo crate
         case 'PLAYER_COLLECT_CARGO': {
           broadcastToSector(ws, clientData.sector, {
