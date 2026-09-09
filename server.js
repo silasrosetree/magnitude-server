@@ -161,7 +161,8 @@ wss.on('connection', (ws) => {
             victimId: clientData.id,
             x: data.x,
             y: data.y,
-            radius: data.radius
+            radius: data.radius,
+            cargoDrops: Array.isArray(data.cargoDrops) ? data.cargoDrops : []
           });
           break;
       }
