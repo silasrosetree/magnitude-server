@@ -121,8 +121,11 @@ wss.on('connection', (ws) => {
            // Player ship destroyed in combat
            case 'PLAYER_EXPLODED':
              clientData.isDead = true; // Flag dead on server so snapshots stop broadcasting it
+             clientData.hp = 0;
+             clientData.hullPercent = 0;
+             clientData.shieldPercent = 0;
              for (const [socket, peer] of clients.entries()) {
-               if (peer.sector === clientData.sector && socket.readyState === WebSocket.OPEN) {
+               if (peer.sector === clientData.sector && socket !== ws && socket.readyState === WebSocket.OPEN) {
                  socket.send(JSON.stringify({
                    type: 'REMOTE_PEER_EXPLODED',
                    victimId: clientData.id,
