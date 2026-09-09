@@ -43,7 +43,7 @@ wss.on('connection', (ws) => {
       if (!clientData) return;
 
       switch (data.type) {
-        // Player switched sectors via jump gate or respawn
+        // Player switched sectors via jump gate
         case 'SECTOR_CHANGE': {
           const oldSector = clientData.sector;
           const newSector = data.newSector;
@@ -57,6 +57,36 @@ wss.on('connection', (ws) => {
           break;
         }
 
+        // Player respawned in a fresh vessel
+        case 'PLAYER_RESPAWNED': {
+          const oldSector = clientData.sector;
+          const newSector = data.sector || 'alpha';
+          if (oldSector !== newSector) {
+            broadcastToSector(ws, oldSector, {
+              type: 'PLAYER_LEFT',
+              id: clientData.id
+            });
+          }
+          clientData.isDead = false;
+          clientData.sector = newSector;
+          clientData.callsign = data.callsign || clientData.callsign;
+          clientData.shipClass = data.shipClass || 'shuttle';
+          clientData.liveryIndex = data.liveryIndex !== undefined ? data.liveryIndex : clientData.liveryIndex;
+          clientData.turretAngles = [];
+          clientData.criminalRating = data.criminalRating !== undefined ? data.criminalRating : 0;
+          clientData.x = data.x;
+          clientData.y = data.y;
+          clientData.vx = 0;
+          clientData.vy = 0;
+          clientData.angle = data.angle || 0;
+          clientData.thrusting = false;
+          clientData.hp = data.hp;
+          clientData.maxHp = data.maxHp;
+          clientData.shieldPercent = 100;
+          clientData.hullPercent = 100;
+          break;
+        }
+
         // Player sends their position/velocity/sector/telemetry
         case 'PLAYER_UPDATE':
           clientData.sector = data.sector || clientData.sector;
@@ -64,6 +94,7 @@ wss.on('connection', (ws) => {
           clientData.shipClass = data.shipClass || clientData.shipClass;
           clientData.liveryIndex = data.liveryIndex !== undefined ? data.liveryIndex : clientData.liveryIndex;
           clientData.turretAngles = Array.isArray(data.turretAngles) ? data.turretAngles : [];
+          clientData.criminalRating = data.criminalRating !== undefined ? data.criminalRating : clientData.criminalRating;
           clientData.x = data.x;
           clientData.y = data.y;
           clientData.vx = data.vx;
@@ -191,6 +222,7 @@ setInterval(() => {
            shipClass: clientData.shipClass,
            liveryIndex: clientData.liveryIndex !== undefined ? clientData.liveryIndex : 0,
            turretAngles: clientData.turretAngles || [],
+           criminalRating: clientData.criminalRating || 0,
            x: Math.round(clientData.x),
            y: Math.round(clientData.y),
            vx: Math.round(clientData.vx),
