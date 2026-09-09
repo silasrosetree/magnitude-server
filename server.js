@@ -108,6 +108,17 @@ wss.on('connection', (ws) => {
           break;
         }
 
+        // Host broadcasts NPC messages/scan results to non-host players
+        case 'HOST_NPC_MESSAGE': {
+          if (clientData.isSectorHost) {
+            broadcastToSector(ws, clientData.sector, {
+              ...data,
+              type: 'REMOTE_NPC_MESSAGE'
+            });
+          }
+          break;
+        }
+
         // Host broadcasts shattered asteroid destruction event
         case 'HOST_ASTEROID_DESTROYED': {
           if (clientData.isSectorHost) {
