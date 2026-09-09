@@ -85,11 +85,14 @@ wss.on('connection', (ws) => {
 
         // Host relays AI weapon discharges (lasers, turrets, missiles) to sector peers
         case 'HOST_AI_FIRE': {
+          console.log(`[Server AI Fire] From host ${clientData.id} in sector ${clientData.sector}:`, data.weaponKey || data.type);
           if (clientData.isSectorHost) {
             broadcastToSector(ws, clientData.sector, {
               type: 'REMOTE_AI_FIRE',
               ...data
             });
+          } else {
+            console.warn(`[Server AI Fire Ignored] Client ${clientData.id} attempted to fire AI weapon but is not sector host!`);
           }
           break;
         }
