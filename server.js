@@ -7,6 +7,9 @@ const wss = new WebSocketServer({ port: PORT });
 // Store active player sessions in memory: socket -> player data
 const clients = new Map();
 
+// Track host election timestamps per sector to prevent rapid migration thrashing
+const sectorElectionTimes = new Map();
+
 console.log(`[Universe Relay] Starting WebSocket server on port ${PORT}...`);
 
 wss.on('connection', (ws) => {
@@ -384,23 +387,36 @@ function electSectorHost(sectorId) {
     }
   }
 
-  if (sectorClients.length === 0) return;
+  if (sectorClients.length === 0) {
+    sectorElectionTimes.delete(sectorId);
+    return;
+  }
 
   // Rank clients by fitness score (highest FPS, lowest ping first)
   sectorClients.sort((a, b) => calculateHostFitness(b.clientData) - calculateHostFitness(a.clientData));
   const optimalCandidate = sectorClients[0];
 
-  // If existing host is still performing adequately within 15 fitness points of the leader, avoid unnecessary handoffs
+  const now = Date.now();
+  const lastElection = sectorElectionTimes.get(sectorId) || 0;
+
+  // If a healthy host is active, enforce a 35-point hysteresis buffer and an 8-second migration cooldown
   if (currentHost && !currentHost.isTabHidden && !currentHost.isDead) {
     const currentScore = calculateHostFitness(currentHost);
     const optimalScore = calculateHostFitness(optimalCandidate.clientData);
-    if (optimalCandidate.clientData !== currentHost && (optimalScore - currentScore) < 15) {
-      return;
+
+    if (optimalCandidate.clientData !== currentHost) {
+      const scoreLead = optimalScore - currentScore;
+      const isCooldownActive = (now - lastElection) < 8000;
+
+      if (scoreLead < 35 || isCooldownActive) {
+        return;
+      }
     }
   }
 
   const newHost = optimalCandidate;
   if (currentHost !== newHost.clientData) {
+    sectorElectionTimes.set(sectorId, now);
     if (currentHost) currentHost.isSectorHost = false;
     newHost.clientData.isSectorHost = true;
     console.log(`[Host Migration] Promoted ${newHost.clientData.id} to AI authority for sector ${sectorId} (FPS: ${newHost.clientData.fps}, Ping: ${newHost.clientData.ping}ms)`);
