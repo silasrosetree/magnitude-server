@@ -43,22 +43,37 @@ wss.on('connection', (ws) => {
       if (!clientData) return;
 
       switch (data.type) {
+        // Player switched sectors via jump gate or respawn
+        case 'SECTOR_CHANGE': {
+          const oldSector = clientData.sector;
+          const newSector = data.newSector;
+          if (oldSector !== newSector) {
+            broadcastToSector(ws, oldSector, {
+              type: 'PLAYER_LEFT',
+              id: clientData.id
+            });
+            clientData.sector = newSector;
+          }
+          break;
+        }
+
         // Player sends their position/velocity/sector/telemetry
-           case 'PLAYER_UPDATE':
-             clientData.sector = data.sector || clientData.sector;
-             clientData.callsign = data.callsign || clientData.callsign;
-             clientData.shipClass = data.shipClass || clientData.shipClass;
-             clientData.x = data.x;
-             clientData.y = data.y;
-             clientData.vx = data.vx;
-             clientData.vy = data.vy;
-             clientData.angle = data.angle;
-             clientData.thrusting = data.thrusting;
-             clientData.hp = data.hp;
-             clientData.maxHp = data.maxHp;
-             clientData.shieldPercent = data.shieldPercent;
-             clientData.hullPercent = data.hullPercent;
-             break;
+        case 'PLAYER_UPDATE':
+          clientData.sector = data.sector || clientData.sector;
+          clientData.callsign = data.callsign || clientData.callsign;
+          clientData.shipClass = data.shipClass || clientData.shipClass;
+          clientData.liveryIndex = data.liveryIndex !== undefined ? data.liveryIndex : clientData.liveryIndex;
+          clientData.x = data.x;
+          clientData.y = data.y;
+          clientData.vx = data.vx;
+          clientData.vy = data.vy;
+          clientData.angle = data.angle;
+          clientData.thrusting = data.thrusting;
+          clientData.hp = data.hp;
+          clientData.maxHp = data.maxHp;
+          clientData.shieldPercent = data.shieldPercent;
+          clientData.hullPercent = data.hullPercent;
+          break;
 
         // Player fires a weapon or launches ordnance
         case 'WEAPON_FIRED':
@@ -160,7 +175,9 @@ setInterval(() => {
     alpha: [],
     beta: [],
     gamma: [],
-    delta: []
+    delta: [],
+    echo: [],
+    epsilon: []
   };
 
   for (const clientData of clients.values()) {
@@ -170,6 +187,7 @@ setInterval(() => {
            id: clientData.id,
            callsign: clientData.callsign,
            shipClass: clientData.shipClass,
+           liveryIndex: clientData.liveryIndex !== undefined ? clientData.liveryIndex : 0,
            x: Math.round(clientData.x),
            y: Math.round(clientData.y),
            vx: Math.round(clientData.vx),
