@@ -206,6 +206,14 @@ wss.on('connection', (ws) => {
           clientData.maxHp = data.maxHp;
           clientData.shieldPercent = 100;
           clientData.hullPercent = 100;
+
+          if (!clientData.hasAnnouncedJoin && clientData.callsign && clientData.callsign !== 'Unknown Vessel') {
+            clientData.hasAnnouncedJoin = true;
+            broadcastGlobal(ws, {
+              type: 'SYSTEM_ANNOUNCEMENT',
+              text: `${clientData.callsign} joined the universe`
+            });
+          }
           break;
         }
 
@@ -214,6 +222,14 @@ wss.on('connection', (ws) => {
           const prevSector = clientData.sector;
           clientData.sector = data.sector || clientData.sector;
           clientData.callsign = data.callsign || clientData.callsign;
+
+          if (!clientData.hasAnnouncedJoin && clientData.callsign && clientData.callsign !== 'Unknown Vessel') {
+            clientData.hasAnnouncedJoin = true;
+            broadcastGlobal(ws, {
+              type: 'SYSTEM_ANNOUNCEMENT',
+              text: `${clientData.callsign} joined the universe`
+            });
+          }
           clientData.shipClass = data.shipClass || clientData.shipClass;
           clientData.liveryIndex = data.liveryIndex !== undefined ? data.liveryIndex : clientData.liveryIndex;
           clientData.turretAngles = Array.isArray(data.turretAngles) ? data.turretAngles : [];
@@ -315,6 +331,14 @@ wss.on('connection', (ws) => {
     if (clientData) {
       const departedSector = clientData.sector;
       console.log(`[Disconnect] Player departed: ${clientData.id}`);
+      
+      if (clientData.hasAnnouncedJoin && clientData.callsign) {
+        broadcastGlobal(ws, {
+          type: 'SYSTEM_ANNOUNCEMENT',
+          text: `${clientData.callsign} left the universe`
+        });
+      }
+
       // Notify other players in that sector so they remove the ghost ship
       broadcastToSector(ws, departedSector, {
         type: 'PLAYER_LEFT',
