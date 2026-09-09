@@ -57,6 +57,20 @@ wss.on('connection', (ws) => {
           break;
         }
 
+        // Player broadcast text message to current sector
+        case 'PLAYER_CHAT': {
+          const rawText = String(data.text || '').trim().slice(0, 140);
+          if (rawText.length > 0) {
+            broadcastToSector(ws, clientData.sector, {
+              type: 'REMOTE_CHAT_MESSAGE',
+              senderId: clientData.id,
+              callsign: clientData.callsign || 'Unknown Pilot',
+              text: rawText
+            });
+          }
+          break;
+        }
+
         // Player respawned in a fresh vessel
         case 'PLAYER_RESPAWNED': {
           const oldSector = clientData.sector;
@@ -74,6 +88,9 @@ wss.on('connection', (ws) => {
           clientData.liveryIndex = data.liveryIndex !== undefined ? data.liveryIndex : clientData.liveryIndex;
           clientData.turretAngles = [];
           clientData.criminalRating = data.criminalRating !== undefined ? data.criminalRating : 0;
+          clientData.isDocked = true;
+          clientData.dockedStationId = data.dockedStationId || null;
+          clientData.dockedPortId = data.dockedPortId || null;
           clientData.x = data.x;
           clientData.y = data.y;
           clientData.vx = 0;
@@ -95,6 +112,9 @@ wss.on('connection', (ws) => {
           clientData.liveryIndex = data.liveryIndex !== undefined ? data.liveryIndex : clientData.liveryIndex;
           clientData.turretAngles = Array.isArray(data.turretAngles) ? data.turretAngles : [];
           clientData.criminalRating = data.criminalRating !== undefined ? data.criminalRating : clientData.criminalRating;
+          clientData.isDocked = Boolean(data.isDocked);
+          clientData.dockedStationId = data.dockedStationId || null;
+          clientData.dockedPortId = data.dockedPortId || null;
           clientData.x = data.x;
           clientData.y = data.y;
           clientData.vx = data.vx;
@@ -159,6 +179,8 @@ wss.on('connection', (ws) => {
           broadcastToSector(ws, clientData.sector, {
             type: 'REMOTE_PEER_EXPLODED',
             victimId: clientData.id,
+            victimCallsign: clientData.callsign || 'Unknown Pilot',
+            killerCallsign: data.killerCallsign || null,
             x: data.x,
             y: data.y,
             radius: data.radius,
@@ -224,6 +246,9 @@ setInterval(() => {
            liveryIndex: clientData.liveryIndex !== undefined ? clientData.liveryIndex : 0,
            turretAngles: clientData.turretAngles || [],
            criminalRating: clientData.criminalRating || 0,
+           isDocked: Boolean(clientData.isDocked),
+           dockedStationId: clientData.dockedStationId || null,
+           dockedPortId: clientData.dockedPortId || null,
            x: Math.round(clientData.x),
            y: Math.round(clientData.y),
            vx: Math.round(clientData.vx),
