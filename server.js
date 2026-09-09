@@ -68,13 +68,34 @@ wss.on('connection', (ws) => {
           break;
         }
 
-        // Authority Host streams live sector AI state snapshot with angular velocities
+        // Authority Host streams live sector AI state snapshot, station rotation, and ports
         case 'HOST_AI_SNAPSHOT': {
           if (clientData.isSectorHost) {
             clientData.lastAiSnapshotTime = Date.now();
             broadcastToSector(ws, clientData.sector, {
               type: 'REMOTE_AI_SNAPSHOT',
+              stationAngle: data.stationAngle,
+              stationRotSpeed: data.stationRotSpeed,
+              stationPorts: Array.isArray(data.stationPorts) ? data.stationPorts : [],
               ships: Array.isArray(data.ships) ? data.ships : []
+            });
+          }
+          break;
+        }
+
+        // Host relays AI weapon discharges (lasers, turrets, missiles) to sector peers
+        case 'HOST_AI_FIRE': {
+          if (clientData.isSectorHost) {
+            broadcastToSector(ws, clientData.sector, {
+              type: 'REMOTE_AI_FIRE',
+              shipId: data.shipId,
+              weaponType: data.weaponType,
+              x: data.x,
+              y: data.y,
+              vx: data.vx,
+              vy: data.vy,
+              angle: data.angle,
+              targetId: data.targetId || null
             });
           }
           break;
