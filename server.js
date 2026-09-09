@@ -66,7 +66,7 @@ wss.on('connection', (ws) => {
           break;
         }
 
-        // Authority Host streams live sector AI state snapshot
+        // Authority Host streams live sector AI state snapshot with angular velocities
         case 'HOST_AI_SNAPSHOT': {
           if (clientData.isSectorHost) {
             broadcastToSector(ws, clientData.sector, {
