@@ -17,6 +17,7 @@ wss.on('connection', (ws) => {
   clients.set(ws, {
     id: clientId,
     sector: 'alpha',
+    isSectorHost: false,
     callsign: 'Unknown Vessel',
     shipClass: 'shuttle',
     x: 0,
@@ -26,6 +27,8 @@ wss.on('connection', (ws) => {
     angle: 0,
     thrusting: false
   });
+
+  electSectorHost('alpha');
 
   console.log(`[Connect] Player connected: ${clientId}. Total online: ${clients.size}`);
 
@@ -53,6 +56,20 @@ wss.on('connection', (ws) => {
               id: clientData.id
             });
             clientData.sector = newSector;
+            clientData.isSectorHost = false;
+            electSectorHost(oldSector);
+            electSectorHost(newSector);
+          }
+          break;
+        }
+
+        // Authority Host streams live sector AI state snapshot
+        case 'HOST_AI_SNAPSHOT': {
+          if (clientData.isSectorHost) {
+            broadcastToSector(ws, clientData.sector, {
+              type: 'REMOTE_AI_SNAPSHOT',
+              ships: Array.isArray(data.ships) ? data.ships : []
+            });
           }
           break;
         }
@@ -198,13 +215,15 @@ wss.on('connection', (ws) => {
   ws.on('close', () => {
     const clientData = clients.get(ws);
     if (clientData) {
+      const departedSector = clientData.sector;
       console.log(`[Disconnect] Player departed: ${clientData.id}`);
       // Notify other players in that sector so they remove the ghost ship
-      broadcastToSector(ws, clientData.sector, {
+      broadcastToSector(ws, departedSector, {
         type: 'PLAYER_LEFT',
         id: clientData.id
       });
       clients.delete(ws);
+      electSectorHost(departedSector);
     }
   });
 
@@ -212,6 +231,35 @@ wss.on('connection', (ws) => {
     ws.close();
   });
 });
+
+// Helper: Elect or migrate AI authority host for a given sector channel
+function electSectorHost(sectorId) {
+  let existingHost = null;
+  const sectorClients = [];
+
+  for (const [socket, clientData] of clients.entries()) {
+    if (clientData.sector === sectorId && socket.readyState === WebSocket.OPEN) {
+      sectorClients.push({ socket, clientData });
+      if (clientData.isSectorHost) {
+        existingHost = clientData;
+      }
+    }
+  }
+
+  // If a host already exists in this sector, no action needed
+  if (existingHost) return;
+
+  // Elect the first available client in this sector as the new AI authority
+  if (sectorClients.length > 0) {
+    const newHost = sectorClients[0];
+    newHost.clientData.isSectorHost = true;
+    console.log(`[Host Migration] Promoted ${newHost.clientData.id} to AI authority for sector ${sectorId}`);
+    newHost.socket.send(JSON.stringify({
+      type: 'HOST_PROMOTED',
+      sector: sectorId
+    }));
+  }
+}
 
 // Helper: Send a packet to everyone in the same sector EXCEPT the sender
 function broadcastToSector(senderWs, sectorId, packet) {
