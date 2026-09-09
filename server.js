@@ -13,11 +13,15 @@ wss.on('connection', (ws) => {
   // Generate a quick random ID for this connected player
   const clientId = 'ply_' + Math.random().toString(36).substring(2, 9);
 
+  // Determine if this connection is the first active player in the starting sector
+  const existingAlphaHost = Array.from(clients.values()).find(c => c.sector === 'alpha' && c.isSectorHost);
+  const isInitialHost = !existingAlphaHost;
+
   // Initialize client record
   clients.set(ws, {
     id: clientId,
     sector: 'alpha',
-    isSectorHost: false,
+    isSectorHost: isInitialHost,
     callsign: 'Unknown Vessel',
     shipClass: 'shuttle',
     x: 0,
@@ -28,14 +32,13 @@ wss.on('connection', (ws) => {
     thrusting: false
   });
 
-  electSectorHost('alpha');
+  console.log(`[Connect] Player connected: ${clientId} (Host: ${isInitialHost}). Total online: ${clients.size}`);
 
-  console.log(`[Connect] Player connected: ${clientId}. Total online: ${clients.size}`);
-
-  // Send the new player their assigned ID
+  // Send the new player their assigned ID and explicit authority flag
   ws.send(JSON.stringify({
     type: 'WELCOME',
-    id: clientId
+    id: clientId,
+    isHost: isInitialHost
   }));
 
   // Handle incoming messages from this browser
