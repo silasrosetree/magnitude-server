@@ -409,18 +409,18 @@ setInterval(() => {
 
   for (const clientData of clients.values()) {
        if (clientData.isDead) continue; // Skip destroyed ships
-       if (sectorSnapshots[clientData.sector]) {
-         sectorSnapshots[clientData.sector].push({
-           id: clientData.id,
-           callsign: clientData.callsign,
-           shipClass: clientData.shipClass,
-           liveryIndex: clientData.liveryIndex !== undefined ? clientData.liveryIndex : 0,
-           turretAngles: clientData.turretAngles || [],
-           criminalRating: clientData.criminalRating || 0,
-           isDocked: Boolean(clientData.isDocked),
-           dockedStationId: clientData.dockedStationId || null,
-           dockedPortId: clientData.dockedPortId || null,
-           x: Math.round(clientData.x),
+        if (sectorSnapshots[clientData.sector]) {
+          sectorSnapshots[clientData.sector].push({
+            id: clientData.id,
+            callsign: clientData.callsign,
+            shipClass: clientData.shipClass,
+            liveryIndex: clientData.liveryIndex !== undefined ? clientData.liveryIndex : 0,
+            turretAngles: clientData.turretAngles || [],
+            criminalRating: clientData.criminalRating || 0,
+            isDocked: Boolean(clientData.isDocked),
+            dockedStationId: clientData.dockedStationId || null,
+            dockedPortId: clientData.dockedPortId || null,
+            x: Math.round(clientData.x),
            y: Math.round(clientData.y),
            vx: Math.round(clientData.vx),
            vy: Math.round(clientData.vy),
