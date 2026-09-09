@@ -321,49 +321,59 @@ wss.on('connection', (ws) => {
 
 // Helper: Elect or migrate AI authority host for a given sector channel
 function electSectorHost(sectorId) {
-  let existingHost = null;
   const sectorClients = [];
+  let currentHost = null;
 
   for (const [socket, clientData] of clients.entries()) {
     if (clientData.sector === sectorId && socket.readyState === WebSocket.OPEN && !clientData.isTabHidden) {
       sectorClients.push({ socket, clientData });
       if (clientData.isSectorHost) {
-        existingHost = clientData;
+        currentHost = clientData;
       }
     }
   }
 
-  // If a valid host already exists in this sector, demote any duplicates
-  if (existingHost) {
+  // If we already have a valid, active host in this sector, just ensure no other duplicates exist
+  if (currentHost) {
+    let hasDuplicates = false;
     for (const item of sectorClients) {
-      if (item.clientData !== existingHost && item.clientData.isSectorHost) {
+      if (item.clientData !== currentHost && item.clientData.isSectorHost) {
         item.clientData.isSectorHost = false;
+        hasDuplicates = true;
         item.socket.send(JSON.stringify({
           type: 'HOST_DEMOTED',
           sector: sectorId
         }));
       }
     }
-    return;
+    if (!hasDuplicates) return; // Host is stable; avoid spamming logs
   }
 
   // Elect the first available client in this sector as the new AI authority
   if (sectorClients.length > 0) {
     const newHost = sectorClients[0];
-    newHost.clientData.isSectorHost = true;
-    console.log(`[Host Migration] Promoted ${newHost.clientData.id} to AI authority for sector ${sectorId}`);
-    newHost.socket.send(JSON.stringify({
-      type: 'HOST_PROMOTED',
-      sector: sectorId
-    }));
-
-    // Ensure all other clients in the sector know they are replicas
-    for (let i = 1; i < sectorClients.length; i++) {
-      sectorClients[i].clientData.isSectorHost = false;
-      sectorClients[i].socket.send(JSON.stringify({
-        type: 'HOST_DEMOTED',
+    if (currentHost !== newHost.clientData) {
+      if (currentHost) currentHost.isSectorHost = false;
+      newHost.clientData.isSectorHost = true;
+      console.log(`[Host Migration] Promoted ${newHost.clientData.id} to AI authority for sector ${sectorId}`);
+      newHost.socket.send(JSON.stringify({
+        type: 'HOST_PROMOTED',
         sector: sectorId
       }));
+    }
+
+    // Ensure all other clients in the sector know they are replicas
+    for (let i = 0; i < sectorClients.length; i++) {
+      const item = sectorClients[i];
+      if (item.clientData !== newHost.clientData) {
+        if (item.clientData.isSectorHost) {
+          item.clientData.isSectorHost = false;
+          item.socket.send(JSON.stringify({
+            type: 'HOST_DEMOTED',
+            sector: sectorId
+          }));
+        }
+      }
     }
   }
 }
