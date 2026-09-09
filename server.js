@@ -97,6 +97,26 @@ wss.on('connection', (ws) => {
           break;
         }
 
+        // Host broadcasts spawned cargo crates from destroyed vessels
+        case 'HOST_CARGO_SPAWN': {
+          if (clientData.isSectorHost) {
+            broadcastToSector(ws, clientData.sector, {
+              ...data,
+              type: 'REMOTE_CARGO_SPAWN'
+            });
+          }
+          break;
+        }
+
+        // Any player scoops a cargo crate
+        case 'PLAYER_COLLECT_CARGO': {
+          broadcastToSector(ws, clientData.sector, {
+            ...data,
+            type: 'REMOTE_CARGO_COLLECTED'
+          });
+          break;
+        }
+
         // Host voluntarily yields authority (e.g. tab minimized or backgrounded)
         case 'HOST_YIELD': {
           if (clientData.isSectorHost) {
