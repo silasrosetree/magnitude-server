@@ -22,6 +22,8 @@ wss.on('connection', (ws) => {
     id: clientId,
     sector: 'alpha',
     isSectorHost: isInitialHost,
+    lastAiSnapshotTime: Date.now(),
+    isTabHidden: false,
     callsign: 'Unknown Vessel',
     shipClass: 'shuttle',
     x: 0,
@@ -69,11 +71,34 @@ wss.on('connection', (ws) => {
         // Authority Host streams live sector AI state snapshot with angular velocities
         case 'HOST_AI_SNAPSHOT': {
           if (clientData.isSectorHost) {
+            clientData.lastAiSnapshotTime = Date.now();
             broadcastToSector(ws, clientData.sector, {
               type: 'REMOTE_AI_SNAPSHOT',
               ships: Array.isArray(data.ships) ? data.ships : []
             });
           }
+          break;
+        }
+
+        // Host voluntarily yields authority (e.g. tab minimized or backgrounded)
+        case 'HOST_YIELD': {
+          if (clientData.isSectorHost) {
+            console.log(`[Host Migration] Host ${clientData.id} yielded authority (tab blurred/hidden).`);
+            clientData.isSectorHost = false;
+            clientData.isTabHidden = true;
+            ws.send(JSON.stringify({ type: 'HOST_DEMOTED', sector: clientData.sector }));
+            electSectorHost(clientData.sector);
+          } else {
+            clientData.isTabHidden = true;
+          }
+          break;
+        }
+
+        // Client returned to focus
+        case 'HOST_RESUME': {
+          clientData.isTabHidden = false;
+          // If sector currently lacks an active host, elect immediately
+          electSectorHost(clientData.sector);
           break;
         }
 
@@ -252,7 +277,7 @@ function electSectorHost(sectorId) {
   const sectorClients = [];
 
   for (const [socket, clientData] of clients.entries()) {
-    if (clientData.sector === sectorId && socket.readyState === WebSocket.OPEN) {
+    if (clientData.sector === sectorId && socket.readyState === WebSocket.OPEN && !clientData.isTabHidden) {
       sectorClients.push({ socket, clientData });
       if (clientData.isSectorHost) {
         existingHost = clientData;
@@ -305,7 +330,22 @@ function broadcastToSector(senderWs, sectorId, packet) {
   }
 }
 
-// 15 Hz Universe Heartbeat: Broadcast sector state snapshots to all players
+// Watchdog: detect if active sector host stalled or tab-throttled (>1.5s without AI snapshot)
+setInterval(() => {
+  const now = Date.now();
+  for (const [socket, clientData] of clients.entries()) {
+    if (clientData.isSectorHost && !clientData.isTabHidden) {
+      if (now - (clientData.lastAiSnapshotTime || now) > 1500) {
+        console.log(`[Host Watchdog] Host ${clientData.id} stalled in sector ${clientData.sector}. Migrating...`);
+        clientData.isSectorHost = false;
+        socket.send(JSON.stringify({ type: 'HOST_DEMOTED', sector: clientData.sector }));
+        electSectorHost(clientData.sector);
+      }
+    }
+  }
+}, 500);
+
+// 10 Hz sector telemetry broadcast loop
 setInterval(() => {
   if (clients.size === 0) return;
 
