@@ -88,14 +88,7 @@ wss.on('connection', (ws) => {
           if (clientData.isSectorHost) {
             broadcastToSector(ws, clientData.sector, {
               type: 'REMOTE_AI_FIRE',
-              shipId: data.shipId,
-              weaponType: data.weaponType,
-              x: data.x,
-              y: data.y,
-              vx: data.vx,
-              vy: data.vy,
-              angle: data.angle,
-              targetId: data.targetId || null
+              ...data
             });
           }
           break;
