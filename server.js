@@ -65,6 +65,7 @@ wss.on('connection', (ws) => {
               type: 'REMOTE_CHAT_MESSAGE',
               senderId: clientData.id,
               callsign: clientData.callsign || 'Unknown Pilot',
+              liveryIndex: clientData.liveryIndex !== undefined ? clientData.liveryIndex : 0,
               text: rawText
             });
           }
