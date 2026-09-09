@@ -63,6 +63,7 @@ wss.on('connection', (ws) => {
           clientData.callsign = data.callsign || clientData.callsign;
           clientData.shipClass = data.shipClass || clientData.shipClass;
           clientData.liveryIndex = data.liveryIndex !== undefined ? data.liveryIndex : clientData.liveryIndex;
+          clientData.turretAngles = Array.isArray(data.turretAngles) ? data.turretAngles : [];
           clientData.x = data.x;
           clientData.y = data.y;
           clientData.vx = data.vx;
@@ -80,6 +81,7 @@ wss.on('connection', (ws) => {
           broadcastToSector(ws, clientData.sector, {
             type: 'REMOTE_WEAPON_FIRED',
             sourceId: clientData.id,
+            targetId: data.targetId || null,
             hardpointIndex: data.hardpointIndex,
             originX: data.originX,
             originY: data.originY,
@@ -188,6 +190,7 @@ setInterval(() => {
            callsign: clientData.callsign,
            shipClass: clientData.shipClass,
            liveryIndex: clientData.liveryIndex !== undefined ? clientData.liveryIndex : 0,
+           turretAngles: clientData.turretAngles || [],
            x: Math.round(clientData.x),
            y: Math.round(clientData.y),
            vx: Math.round(clientData.vx),
