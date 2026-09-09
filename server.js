@@ -26,6 +26,8 @@ wss.on('connection', (ws) => {
     isTabHidden: false,
     callsign: 'Unknown Vessel',
     shipClass: 'shuttle',
+    fps: 60,
+    ping: 30,
     x: 0,
     y: 0,
     vx: 0,
@@ -51,6 +53,11 @@ wss.on('connection', (ws) => {
       if (!clientData) return;
 
       switch (data.type) {
+        case 'PING': {
+          ws.send(JSON.stringify({ type: 'PONG', clientTime: data.clientTime }));
+          break;
+        }
+
         // Player switched sectors via jump gate
         case 'SECTOR_CHANGE': {
           const oldSector = clientData.sector;
@@ -247,6 +254,8 @@ wss.on('connection', (ws) => {
           clientData.maxHp = data.maxHp;
           clientData.shieldPercent = data.shieldPercent;
           clientData.hullPercent = data.hullPercent;
+          if (data.fps !== undefined) clientData.fps = Number(data.fps) || 60;
+          if (data.ping !== undefined) clientData.ping = Number(data.ping) || 30;
           clientData.isDead = (data.hp !== undefined && data.hp <= 0) || (data.hullPercent !== undefined && data.hullPercent <= 0);
 
           // Verify sector host authority election
@@ -354,13 +363,20 @@ wss.on('connection', (ws) => {
   });
 });
 
-// Helper: Elect or migrate AI authority host for a given sector channel
+// Calculate connection quality score (Higher FPS + Lower Ping = Better Host Authority)
+function calculateHostFitness(client) {
+  const fps = Math.max(10, Math.min(144, client.fps || 60));
+  const ping = Math.max(1, Math.min(800, client.ping || 40));
+  return (fps * 2.0) - ping;
+}
+
+// Helper: Elect or migrate AI authority host based on lowest ping & highest stable framerate
 function electSectorHost(sectorId) {
   const sectorClients = [];
   let currentHost = null;
 
   for (const [socket, clientData] of clients.entries()) {
-    if (clientData.sector === sectorId && socket.readyState === WebSocket.OPEN && !clientData.isTabHidden) {
+    if (clientData.sector === sectorId && socket.readyState === WebSocket.OPEN && !clientData.isTabHidden && !clientData.isDead) {
       sectorClients.push({ socket, clientData });
       if (clientData.isSectorHost) {
         currentHost = clientData;
@@ -368,47 +384,41 @@ function electSectorHost(sectorId) {
     }
   }
 
-  // If we already have a valid, active host in this sector, just ensure no other duplicates exist
-  if (currentHost) {
-    let hasDuplicates = false;
-    for (const item of sectorClients) {
-      if (item.clientData !== currentHost && item.clientData.isSectorHost) {
-        item.clientData.isSectorHost = false;
-        hasDuplicates = true;
-        item.socket.send(JSON.stringify({
-          type: 'HOST_DEMOTED',
-          sector: sectorId
-        }));
-      }
+  if (sectorClients.length === 0) return;
+
+  // Rank clients by fitness score (highest FPS, lowest ping first)
+  sectorClients.sort((a, b) => calculateHostFitness(b.clientData) - calculateHostFitness(a.clientData));
+  const optimalCandidate = sectorClients[0];
+
+  // If existing host is still performing adequately within 15 fitness points of the leader, avoid unnecessary handoffs
+  if (currentHost && !currentHost.isTabHidden && !currentHost.isDead) {
+    const currentScore = calculateHostFitness(currentHost);
+    const optimalScore = calculateHostFitness(optimalCandidate.clientData);
+    if (optimalCandidate.clientData !== currentHost && (optimalScore - currentScore) < 15) {
+      return;
     }
-    if (!hasDuplicates) return; // Host is stable; avoid spamming logs
   }
 
-  // Elect the first available client in this sector as the new AI authority
-  if (sectorClients.length > 0) {
-    const newHost = sectorClients[0];
-    if (currentHost !== newHost.clientData) {
-      if (currentHost) currentHost.isSectorHost = false;
-      newHost.clientData.isSectorHost = true;
-      console.log(`[Host Migration] Promoted ${newHost.clientData.id} to AI authority for sector ${sectorId}`);
-      newHost.socket.send(JSON.stringify({
-        type: 'HOST_PROMOTED',
+  const newHost = optimalCandidate;
+  if (currentHost !== newHost.clientData) {
+    if (currentHost) currentHost.isSectorHost = false;
+    newHost.clientData.isSectorHost = true;
+    console.log(`[Host Migration] Promoted ${newHost.clientData.id} to AI authority for sector ${sectorId} (FPS: ${newHost.clientData.fps}, Ping: ${newHost.clientData.ping}ms)`);
+    newHost.socket.send(JSON.stringify({
+      type: 'HOST_PROMOTED',
+      sector: sectorId
+    }));
+  }
+
+  // Demote any duplicate host nodes
+  for (let i = 0; i < sectorClients.length; i++) {
+    const item = sectorClients[i];
+    if (item.clientData !== newHost.clientData && item.clientData.isSectorHost) {
+      item.clientData.isSectorHost = false;
+      item.socket.send(JSON.stringify({
+        type: 'HOST_DEMOTED',
         sector: sectorId
       }));
-    }
-
-    // Ensure all other clients in the sector know they are replicas
-    for (let i = 0; i < sectorClients.length; i++) {
-      const item = sectorClients[i];
-      if (item.clientData !== newHost.clientData) {
-        if (item.clientData.isSectorHost) {
-          item.clientData.isSectorHost = false;
-          item.socket.send(JSON.stringify({
-            type: 'HOST_DEMOTED',
-            sector: sectorId
-          }));
-        }
-      }
     }
   }
 }
