@@ -32,10 +32,17 @@ wss.on('connection', (ws) => {
 
   console.log(`[Connect] Player connected: ${clientId}. Total online: ${clients.size}`);
 
-  // Send the new player their assigned ID
+  // Send the new player their assigned ID and current host status
+  const currentSectorHost = Array.from(clients.values()).find(c => c.sector === 'alpha' && c.isSectorHost);
+  const isFirstInSector = !currentSectorHost;
+  if (isFirstInSector) {
+    clients.get(ws).isSectorHost = true;
+  }
+
   ws.send(JSON.stringify({
     type: 'WELCOME',
-    id: clientId
+    id: clientId,
+    isHost: isFirstInSector
   }));
 
   // Handle incoming messages from this browser
@@ -246,8 +253,19 @@ function electSectorHost(sectorId) {
     }
   }
 
-  // If a host already exists in this sector, no action needed
-  if (existingHost) return;
+  // If a valid host already exists in this sector, demote any duplicates
+  if (existingHost) {
+    for (const item of sectorClients) {
+      if (item.clientData !== existingHost && item.clientData.isSectorHost) {
+        item.clientData.isSectorHost = false;
+        item.socket.send(JSON.stringify({
+          type: 'HOST_DEMOTED',
+          sector: sectorId
+        }));
+      }
+    }
+    return;
+  }
 
   // Elect the first available client in this sector as the new AI authority
   if (sectorClients.length > 0) {
@@ -258,6 +276,15 @@ function electSectorHost(sectorId) {
       type: 'HOST_PROMOTED',
       sector: sectorId
     }));
+
+    // Ensure all other clients in the sector know they are replicas
+    for (let i = 1; i < sectorClients.length; i++) {
+      sectorClients[i].clientData.isSectorHost = false;
+      sectorClients[i].socket.send(JSON.stringify({
+        type: 'HOST_DEMOTED',
+        sector: sectorId
+      }));
+    }
   }
 }
 
