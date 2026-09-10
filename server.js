@@ -72,13 +72,16 @@ wss.on('connection', (ws) => {
           const oldSector = clientData.sector;
           const newSector = data.newSector;
           if (oldSector !== newSector) {
+            const wasHost = clientData.isSectorHost;
+            clientData.isSectorHost = false;
             broadcastToSector(ws, oldSector, {
               type: 'PLAYER_LEFT',
               id: clientData.id
             });
             clientData.sector = newSector;
-            clientData.isSectorHost = false;
-            electSectorHost(oldSector);
+            if (wasHost) {
+              electSectorHost(oldSector);
+            }
             electSectorHost(newSector);
           }
           break;
@@ -480,52 +483,48 @@ setInterval(() => {
   }
 }, 500);
 
-// 10 Hz sector telemetry broadcast loop
+// 15 Hz sector telemetry broadcast loop
 setInterval(() => {
   if (clients.size === 0) return;
 
-  // Group player snapshots by sector
-  const sectorSnapshots = {
-    alpha: [],
-    beta: [],
-    gamma: [],
-    delta: [],
-    echo: [],
-    epsilon: []
-  };
+  // Group player snapshots dynamically by active sector
+  const sectorSnapshots = new Map();
 
   for (const clientData of clients.values()) {
-       if (clientData.isDead) continue; // Skip destroyed ships
-        if (sectorSnapshots[clientData.sector]) {
-          sectorSnapshots[clientData.sector].push({
-            id: clientData.id,
-            callsign: clientData.callsign,
-            shipClass: clientData.shipClass,
-            liveryIndex: clientData.liveryIndex !== undefined ? clientData.liveryIndex : 0,
-            turretAngles: clientData.turretAngles || [],
-            criminalRating: clientData.criminalRating || 0,
-            isDocked: Boolean(clientData.isDocked),
-            dockedStationId: clientData.dockedStationId || null,
-            dockedPortId: clientData.dockedPortId || null,
-            x: Math.round(clientData.x),
-           y: Math.round(clientData.y),
-           vx: Math.round(clientData.vx),
-           vy: Math.round(clientData.vy),
-           angle: Math.round(clientData.angle * 100) / 100,
-           thrusting: clientData.thrusting,
-           hp: clientData.hp,
-           maxHp: clientData.maxHp,
-           shieldPercent: clientData.shieldPercent,
-           hullPercent: clientData.hullPercent
-         });
-       }
-     }
+    if (clientData.isDead) continue; // Skip destroyed ships
+    const sec = clientData.sector || 'alpha';
+    let bucket = sectorSnapshots.get(sec);
+    if (!bucket) {
+      bucket = [];
+      sectorSnapshots.set(sec, bucket);
+    }
+    bucket.push({
+      id: clientData.id,
+      callsign: clientData.callsign,
+      shipClass: clientData.shipClass,
+      liveryIndex: clientData.liveryIndex !== undefined ? clientData.liveryIndex : 0,
+      turretAngles: clientData.turretAngles || [],
+      criminalRating: clientData.criminalRating || 0,
+      isDocked: Boolean(clientData.isDocked),
+      dockedStationId: clientData.dockedStationId || null,
+      dockedPortId: clientData.dockedPortId || null,
+      x: Math.round(clientData.x),
+      y: Math.round(clientData.y),
+      vx: Math.round(clientData.vx),
+      vy: Math.round(clientData.vy),
+      angle: Math.round(clientData.angle * 100) / 100,
+      thrusting: clientData.thrusting,
+      hp: clientData.hp,
+      maxHp: clientData.maxHp,
+      shieldPercent: clientData.shieldPercent,
+      hullPercent: clientData.hullPercent
+    });
+  }
 
   // Send each player only the ships in their active sector
   for (const [socket, clientData] of clients.entries()) {
     if (socket.readyState === WebSocket.OPEN) {
-      const sectorPlayers = sectorSnapshots[clientData.sector] || [];
-      // Filter out the player's own data so they only receive others
+      const sectorPlayers = sectorSnapshots.get(clientData.sector) || [];
       const peers = sectorPlayers.filter(p => p.id !== clientData.id);
       socket.send(JSON.stringify({
         type: 'SECTOR_SNAPSHOT',
