@@ -17,7 +17,13 @@ wss.on('connection', (ws) => {
   const clientId = 'ply_' + Math.random().toString(36).substring(2, 9);
 
   // Determine if this connection is the first active player in the starting sector
-  const existingAlphaHost = Array.from(clients.values()).find(c => c.sector === 'alpha' && c.isSectorHost);
+  let existingAlphaHost = false;
+  for (const c of clients.values()) {
+    if (c.sector === 'alpha' && c.isSectorHost) {
+      existingAlphaHost = true;
+      break;
+    }
+  }
   const isInitialHost = !existingAlphaHost;
 
   // Initialize client record
