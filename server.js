@@ -120,7 +120,8 @@ wss.on('connection', (ws) => {
               stationAngle: data.stationAngle,
               stationRotSpeed: data.stationRotSpeed,
               stationPorts: Array.isArray(data.stationPorts) ? data.stationPorts : [],
-              ships: Array.isArray(data.ships) ? data.ships : []
+              ships: Array.isArray(data.ships) ? data.ships : [],
+              asteroids: Array.isArray(data.asteroids) ? data.asteroids : []
             });
           }
           break;
@@ -450,16 +451,16 @@ function electSectorHost(sectorId) {
   const now = Date.now();
   const lastElection = sectorElectionTimes.get(sectorId) || 0;
 
-  // If a healthy host is active, enforce a 35-point hysteresis buffer and an 8-second migration cooldown
+  // If a healthy host is active, enforce a 50-point hysteresis buffer and a 20-second migration cooldown
   if (currentHost && !currentHost.isTabHidden && !currentHost.isDead) {
     const currentScore = calculateHostFitness(currentHost);
     const optimalScore = calculateHostFitness(optimalCandidate.clientData);
 
     if (optimalCandidate.clientData !== currentHost) {
       const scoreLead = optimalScore - currentScore;
-      const isCooldownActive = (now - lastElection) < 8000;
+      const isCooldownActive = (now - lastElection) < 20000;
 
-      if (scoreLead < 35 || isCooldownActive) {
+      if (scoreLead < 50 || isCooldownActive) {
         return;
       }
     }
@@ -510,12 +511,12 @@ function broadcastToSector(senderWs, sectorId, packet) {
   }
 }
 
-// Watchdog: detect if active sector host stalled or tab-throttled (>1.5s without AI snapshot)
+// Watchdog: detect if active sector host stalled or tab-throttled (>3.0s without AI snapshot)
 setInterval(() => {
   const now = Date.now();
   for (const [socket, clientData] of clients.entries()) {
     if (clientData.isSectorHost && !clientData.isTabHidden) {
-      if (now - (clientData.lastAiSnapshotTime || now) > 1500) {
+      if (now - (clientData.lastAiSnapshotTime || now) > 3000) {
         console.log(`[Host Watchdog] Host ${clientData.id} stalled in sector ${clientData.sector}. Migrating...`);
         clientData.isSectorHost = false;
         socket.send(JSON.stringify({ type: 'HOST_DEMOTED', sector: clientData.sector }));
@@ -523,7 +524,7 @@ setInterval(() => {
       }
     }
   }
-}, 500);
+}, 1000);
 
 // 15 Hz sector telemetry broadcast loop
 setInterval(() => {
