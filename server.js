@@ -223,6 +223,7 @@ wss.on('connection', (ws) => {
           clientData.isDead = false;
           clientData.sector = newSector;
           clientData.callsign = data.callsign || clientData.callsign;
+          clientData.weaponKeys = Array.isArray(data.weaponKeys) ? data.weaponKeys : clientData.weaponKeys;
           clientData.shipClass = data.shipClass || 'shuttle';
           clientData.liveryIndex = data.liveryIndex !== undefined ? data.liveryIndex : clientData.liveryIndex;
           clientData.turretAngles = [];
