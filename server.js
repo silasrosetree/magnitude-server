@@ -521,15 +521,24 @@ setInterval(() => {
     });
   }
 
-  // Send each player only the ships in their active sector
-  for (const [socket, clientData] of clients.entries()) {
-    if (socket.readyState === WebSocket.OPEN) {
-      const sectorPlayers = sectorSnapshots.get(clientData.sector) || [];
-      const peers = sectorPlayers.filter(p => p.id !== clientData.id);
-      socket.send(JSON.stringify({
-        type: 'SECTOR_SNAPSHOT',
-        players: peers
-      }));
+  // Compile a global list of all online pilots for the Universe Roster
+    const universeRoster = [];
+    for (const cData of clients.values()) {
+      if (cData.callsign && cData.callsign !== 'Unknown Vessel') {
+        universeRoster.push(cData.callsign);
+      }
     }
-  }
+
+    // Send each player only the ships in their active sector + global roster
+    for (const [socket, clientData] of clients.entries()) {
+      if (socket.readyState === WebSocket.OPEN) {
+        const sectorPlayers = sectorSnapshots.get(clientData.sector) || [];
+        const peers = sectorPlayers.filter(p => p.id !== clientData.id);
+        socket.send(JSON.stringify({
+          type: 'SECTOR_SNAPSHOT',
+          players: peers,
+          universeRoster: universeRoster
+        }));
+      }
+    }
 }, 66); // ~15 times per second 
