@@ -65,7 +65,6 @@ wss.on('connection', (ws) => {
         case 'ATC_REQUEST':
         case 'ATC_RESPONSE': {
           if (data.type === 'ATC_RESPONSE' && data.targetId === 'HOST') {
-            // Route back to the sector host of the player that sent the response
             let targetSector = 'alpha';
             for (const c of clients.values()) {
               if (c.id === data.hostId) { targetSector = c.sector; break; }
