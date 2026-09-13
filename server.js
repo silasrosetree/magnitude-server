@@ -62,6 +62,31 @@ wss.on('connection', (ws) => {
       if (!clientData) return;
 
       switch (data.type) {
+        case 'ATC_REQUEST':
+        case 'ATC_RESPONSE': {
+          if (data.type === 'ATC_RESPONSE' && data.targetId === 'HOST') {
+            // Route back to the sector host of the player that sent the response
+            let targetSector = 'alpha';
+            for (const c of clients.values()) {
+              if (c.id === data.hostId) { targetSector = c.sector; break; }
+            }
+            for (const [targetWs, targetClient] of clients.entries()) {
+              if (targetClient.sector === targetSector && targetClient.isSectorHost && targetWs.readyState === WebSocket.OPEN) {
+                targetWs.send(JSON.stringify(data));
+                break;
+              }
+            }
+          } else {
+            for (const [targetWs, targetClient] of clients.entries()) {
+              if (targetClient.id === data.targetId && targetWs.readyState === WebSocket.OPEN) {
+                targetWs.send(JSON.stringify(data));
+                break;
+              }
+            }
+          }
+          break;
+        }
+
         case 'PING': {
           ws.send(JSON.stringify({ type: 'PONG', clientTime: data.clientTime }));
           break;
