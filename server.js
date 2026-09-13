@@ -129,15 +129,11 @@ wss.on('connection', (ws) => {
 
         // Host relays AI weapon discharges (lasers, turrets, missiles) to sector peers
         case 'HOST_AI_FIRE': {
-          console.log(`[Server AI Fire] From host ${clientData.id} in sector ${clientData.sector}:`, data.weaponKey || data.type);
-          if (clientData.isSectorHost) {
-            broadcastToSector(ws, clientData.sector, {
-              ...data,
-              type: 'REMOTE_AI_FIRE'
-            });
-          } else {
-            console.warn(`[Server AI Fire Ignored] Client ${clientData.id} attempted to fire AI weapon but is not sector host!`);
-          }
+          // Allow replicas to broadcast weapon fire for their own local hired escorts
+          broadcastToSector(ws, clientData.sector, {
+            ...data,
+            type: 'REMOTE_AI_FIRE'
+          });
           break;
         }
 
@@ -309,6 +305,7 @@ wss.on('connection', (ws) => {
           clientData.shieldPercent = data.shieldPercent;
           clientData.hullPercent = data.hullPercent;
           clientData.ports = Array.isArray(data.ports) ? data.ports : clientData.ports;
+          clientData.escorts = Array.isArray(data.escorts) ? data.escorts : [];
           if (data.fps !== undefined) clientData.fps = Number(data.fps) || 60;
           if (data.ping !== undefined) clientData.ping = Number(data.ping) || 30;
           clientData.isDead = (data.hp !== undefined && data.hp <= 0) || (data.hullPercent !== undefined && data.hullPercent <= 0);
@@ -562,7 +559,8 @@ setInterval(() => {
       maxHp: clientData.maxHp,
       shieldPercent: clientData.shieldPercent,
       hullPercent: clientData.hullPercent,
-      ports: clientData.ports || null
+      ports: clientData.ports || null,
+      escorts: clientData.escorts || []
     });
   }
 
