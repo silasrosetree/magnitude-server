@@ -256,6 +256,7 @@ wss.on('connection', (ws) => {
           const prevSector = clientData.sector;
           clientData.sector = data.sector || clientData.sector;
           clientData.callsign = data.callsign || clientData.callsign;
+          clientData.weaponKeys = Array.isArray(data.weaponKeys) ? data.weaponKeys : clientData.weaponKeys;
 
           if (!clientData.hasAnnouncedJoin && clientData.callsign && clientData.callsign !== 'Unknown Vessel') {
             clientData.hasAnnouncedJoin = true;
@@ -518,6 +519,7 @@ setInterval(() => {
       callsign: clientData.callsign,
       shipClass: clientData.shipClass,
       liveryIndex: clientData.liveryIndex !== undefined ? clientData.liveryIndex : 0,
+      weaponKeys: clientData.weaponKeys || [],
       turretAngles: clientData.turretAngles || [],
       criminalRating: clientData.criminalRating || 0,
       isDocked: Boolean(clientData.isDocked),
