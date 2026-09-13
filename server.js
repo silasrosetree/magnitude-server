@@ -127,6 +127,21 @@ wss.on('connection', (ws) => {
           break;
         }
 
+        // Capital ship jumping to a new sector instructs its passengers to jump with it
+        case 'CARRIER_JUMP_PASSENGERS': {
+          const passengers = data.passengerIds || [];
+          for (const [targetWs, targetClient] of clients.entries()) {
+            if (passengers.includes(targetClient.id) && targetWs.readyState === WebSocket.OPEN) {
+              targetWs.send(JSON.stringify({
+                type: 'HOST_CARRIER_JUMPED',
+                targetSector: data.targetSector,
+                carrierId: clientData.id
+              }));
+            }
+          }
+          break;
+        }
+
         // Host broadcasts NPC messages/scan results to non-host players
         case 'HOST_NPC_MESSAGE': {
           if (clientData.isSectorHost) {
