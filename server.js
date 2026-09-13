@@ -283,6 +283,7 @@ wss.on('connection', (ws) => {
           clientData.maxHp = data.maxHp;
           clientData.shieldPercent = data.shieldPercent;
           clientData.hullPercent = data.hullPercent;
+          clientData.ports = Array.isArray(data.ports) ? data.ports : clientData.ports;
           if (data.fps !== undefined) clientData.fps = Number(data.fps) || 60;
           if (data.ping !== undefined) clientData.ping = Number(data.ping) || 30;
           clientData.isDead = (data.hp !== undefined && data.hp <= 0) || (data.hullPercent !== undefined && data.hullPercent <= 0);
@@ -535,7 +536,8 @@ setInterval(() => {
       hp: clientData.hp,
       maxHp: clientData.maxHp,
       shieldPercent: clientData.shieldPercent,
-      hullPercent: clientData.hullPercent
+      hullPercent: clientData.hullPercent,
+      ports: clientData.ports || null
     });
   }
 
