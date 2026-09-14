@@ -217,6 +217,16 @@ wss.on('connection', (ws) => {
         }
 
         // Player broadcast text message globally across all sectors 💬✨
+        case 'PLAYER_CAPITAL_MARKET_UPDATE': {
+          broadcastToSector(ws, clientData.sector, {
+            type: 'REMOTE_CAPITAL_MARKET_UPDATE',
+            capitalId: data.capitalId,
+            market: data.market,
+            services: data.services
+          });
+          break;
+        }
+
         case 'PLAYER_CHAT': {
           const rawText = String(data.text || '').trim().slice(0, 140);
           if (rawText.length > 0) {
