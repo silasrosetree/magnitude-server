@@ -78,7 +78,11 @@ wss.on('connection', (ws) => {
           } else {
             for (const [targetWs, targetClient] of clients.entries()) {
               if (targetClient.id === data.targetId && targetWs.readyState === WebSocket.OPEN) {
-                targetWs.send(JSON.stringify(data));
+                targetWs.send(JSON.stringify({
+                  ...data,
+                  senderId: clientData.id,
+                  sector: clientData.sector
+                }));
                 break;
               }
             }
