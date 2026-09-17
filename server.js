@@ -63,7 +63,8 @@ wss.on('connection', (ws) => {
 
       switch (data.type) {
         case 'ATC_REQUEST':
-        case 'ATC_RESPONSE': {
+        case 'ATC_RESPONSE':
+        case 'ATC_CANCEL': {
           if (data.type === 'ATC_RESPONSE' && data.targetId === 'HOST') {
             let targetSector = 'alpha';
             for (const c of clients.values()) {
@@ -102,10 +103,15 @@ wss.on('connection', (ws) => {
           if (oldSector !== newSector) {
             const wasHost = clientData.isSectorHost;
             clientData.isSectorHost = false;
+            
+            // Only despawn mothership if the player jumped while helming the capital
+            const jumpedWithCapital = Boolean(data.isCapital);
             broadcastToSector(ws, oldSector, {
               type: 'PLAYER_LEFT',
-              id: clientData.id
+              id: clientData.id,
+              mothershipId: jumpedWithCapital ? ('cap_' + clientData.id) : null
             });
+
             clientData.sector = newSector;
             if (wasHost) {
               electSectorHost(oldSector);
@@ -198,6 +204,17 @@ wss.on('connection', (ws) => {
           break;
         }
 
+        // Any player jettisons cargo into space
+        case 'PLAYER_JETTISON_CARGO': {
+          if (data.drop) {
+            broadcastToSector(ws, clientData.sector, {
+              type: 'REMOTE_CARGO_SPAWN',
+              drops: [data.drop]
+            });
+          }
+          break;
+        }
+
         // Host voluntarily yields authority (e.g. tab minimized or backgrounded)
         case 'HOST_YIELD': {
           if (clientData.isSectorHost) {
@@ -220,14 +237,31 @@ wss.on('connection', (ws) => {
           break;
         }
 
-        // Player broadcast text message globally across all sectors 💬✨
         case 'PLAYER_CAPITAL_MARKET_UPDATE': {
           broadcastToSector(ws, clientData.sector, {
             type: 'REMOTE_CAPITAL_MARKET_UPDATE',
             capitalId: data.capitalId,
             market: data.market,
-            services: data.services
+            services: data.services,
+            cargo: data.cargo || {},
+            cargoCapacity: data.cargoCapacity || 0,
+            fuel: data.fuel || 0,
+            ledger: data.ledger || []
           });
+          break;
+        }
+
+        case 'CAPITAL_TRANSACTION': {
+          for (const [targetWs, targetClient] of clients.entries()) {
+            if ((targetClient.id === data.hostId || ('cap_' + targetClient.id) === data.hostId) && targetWs.readyState === WebSocket.OPEN) {
+              targetWs.send(JSON.stringify({
+                ...data,
+                guestId: clientData.id,
+                guestCallsign: clientData.callsign
+              }));
+              break;
+            }
+          }
           break;
         }
 
@@ -293,6 +327,9 @@ wss.on('connection', (ws) => {
           clientData.sector = data.sector || clientData.sector;
           clientData.callsign = data.callsign || clientData.callsign;
           clientData.weaponKeys = Array.isArray(data.weaponKeys) ? data.weaponKeys : clientData.weaponKeys;
+          clientData.mothership = data.mothership || null;
+          clientData.capitalData = data.capitalData || null;
+          clientData.mothership = data.mothership || null;
 
           if (!clientData.hasAnnouncedJoin && clientData.callsign && clientData.callsign !== 'Unknown Vessel') {
             clientData.hasAnnouncedJoin = true;
@@ -414,10 +451,11 @@ wss.on('connection', (ws) => {
         });
       }
 
-      // Notify other players in that sector so they remove the ghost ship
+      // Notify other players in that sector so they remove the player and any associated mothership
       broadcastToSector(ws, departedSector, {
         type: 'PLAYER_LEFT',
-        id: clientData.id
+        id: clientData.id,
+        mothershipId: 'cap_' + clientData.id
       });
       clients.delete(ws);
       electSectorHost(departedSector);
@@ -478,11 +516,16 @@ function electSectorHost(sectorId) {
   }
 
   const newHost = optimalCandidate;
-  if (currentHost !== newHost.clientData) {
+  const isNewHost = currentHost !== newHost.clientData;
+  if (isNewHost) {
     sectorElectionTimes.set(sectorId, now);
     if (currentHost) currentHost.isSectorHost = false;
     newHost.clientData.isSectorHost = true;
     console.log(`[Host Migration] Promoted ${newHost.clientData.id} to AI authority for sector ${sectorId} (FPS: ${newHost.clientData.fps}, Ping: ${newHost.clientData.ping}ms)`);
+  }
+
+  // Unconditionally validate the active host to ensure the client resumes snapshot broadcasts
+  if (newHost.socket.readyState === WebSocket.OPEN) {
     newHost.socket.send(JSON.stringify({
       type: 'HOST_PROMOTED',
       sector: sectorId
@@ -574,7 +617,9 @@ setInterval(() => {
       shieldPercent: clientData.shieldPercent,
       hullPercent: clientData.hullPercent,
       ports: clientData.ports || null,
-      escorts: clientData.escorts || []
+      escorts: clientData.escorts || [],
+      mothership: clientData.mothership || null,
+      capitalData: clientData.capitalData || null
     });
   }
 
