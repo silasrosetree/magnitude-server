@@ -121,7 +121,7 @@ wss.on('connection', (ws) => {
           break;
         }
 
-        // Authority Host streams live sector AI state snapshot, station rotation, and ports
+        // Authority Host streams live sector AI state snapshot, station rotation, ports, and derelicts
         case 'HOST_AI_SNAPSHOT': {
           if (clientData.isSectorHost) {
             clientData.lastAiSnapshotTime = Date.now();
@@ -131,7 +131,8 @@ wss.on('connection', (ws) => {
               stationRotSpeed: data.stationRotSpeed,
               stationPorts: Array.isArray(data.stationPorts) ? data.stationPorts : [],
               ships: Array.isArray(data.ships) ? data.ships : [],
-              asteroids: Array.isArray(data.asteroids) ? data.asteroids : []
+              asteroids: Array.isArray(data.asteroids) ? data.asteroids : [],
+              derelicts: Array.isArray(data.derelicts) ? data.derelicts : []
             });
           }
           break;
@@ -246,6 +247,7 @@ wss.on('connection', (ws) => {
             cargo: data.cargo || {},
             cargoCapacity: data.cargoCapacity || 0,
             fuel: data.fuel || 0,
+            credits: Number(data.credits) || 0,
             ledger: data.ledger || []
           });
           break;
@@ -329,7 +331,10 @@ wss.on('connection', (ws) => {
           clientData.weaponKeys = Array.isArray(data.weaponKeys) ? data.weaponKeys : clientData.weaponKeys;
           clientData.mothership = data.mothership || null;
           clientData.capitalData = data.capitalData || null;
-          clientData.mothership = data.mothership || null;
+          if (clientData.capitalData && data.capitalData) {
+            clientData.capitalData.atcMode = data.capitalData.atcMode || 'manual';
+            clientData.capitalData.credits = Number(data.capitalData.credits) || 0;
+          }
 
           if (!clientData.hasAnnouncedJoin && clientData.callsign && clientData.callsign !== 'Unknown Vessel') {
             clientData.hasAnnouncedJoin = true;
